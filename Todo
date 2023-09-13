@@ -1,0 +1,7 @@
+Atualizar app e lista pmc quando aberto.
+Atualizar parametros da lista quando nova lista, por exemplo, localização das informações na lista.
+Pedir estado (SP, GO, etc) ao iniciar pela primeira vez, e ser possível mudar nas configurações.
+Procurar em lista por: Nome comercial; Nome de substância; EAN. Exibir durante busca: Nome comercial, substância, apresentação e status.
+Os valores a serem exibidos serão de acordo com cada estado.
+Integração com o SIM.
+Integração manual intuitiva com qualquer sistema ou app.
