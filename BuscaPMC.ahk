@@ -11,17 +11,21 @@ VERSION := "0.0.1"
 #SingleInstance Force
 
 #Include ..\libraries\Bruno-Functions\ImportAllList.ahk
+#Include ..\libraries\Github-Updater.ahk\github-updater.ahk
 #Include DatasetClass.ahk
 
 author := "TheBrunoCA"
 repository := "BuscaPMC"
 authorGitLink := "https://api.github.com/" author
 repositoryGitLink := author "/" repository
+github := Git(author, repository)
 
 instalationDir := A_AppData "/" author "/" repository
 executablePath := instalationDir "/" repository ".exe"
 configIniPath := instalationDir "/" repository "_config.ini"
 
+cmedUrl := "https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos"
+pmcDatabaseUrl := ""
 datasetPath := instalationDir "/pmc_teste.xls"
 ;productDataset := Dataset(datasetPath)
 
@@ -38,9 +42,10 @@ searchBtnClicked(args*){
     MsgBox(isInstalled())
 }
 
-if(!isInstalled()){
+if !isInstalled(){
     installApp()
 }
+checkDatabases()
 
 
 
@@ -56,5 +61,32 @@ isInstalled(){
 installApp(){
     NewDir(instalationDir)
     NewIni(configIniPath)
+    
+}
+
+checkDatabases(){
+    inifile := Ini(configIniPath)
+    if !inifile.hasValue("DATABASES", "pmc"){
+        html := GetPageContent(cmedUrl)
+        if !InStr(html, "Preço máximo - xls"){
+            MsgBox("Falha ao pegar banco de dados na CMED.")
+        }
+        position := InStr(html, "Preço máximo - pdf")
+        html := SubStr(html, position)
+        html := StrSplit(html, "Preço máximo - xls")
+        downloadLink := SubStr(html[1], InStr(html[1], "href"))
+        downloadLink := StrSplit(downloadLink, "=")
+        downloadLink := StrSplit(downloadLink[2], ">")
+        downloadLink := downloadLink[1]
+        downloadLink := StrReplace(downloadLink, '"', "")
+        databaseName := StrSplit(downloadLink, "/")
+        databaseName := GetFromSimpleArray(databaseName, "arquivos")
+        MsgBox(downloadLink)
+        MsgBox(databaseName)
+
+    }
+}
+
+getPMCDatabase(){
     
 }
