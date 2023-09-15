@@ -14,6 +14,9 @@ VERSION := "0.0.1"
 #Include ..\libraries\Github-Updater.ahk\github-updater.ahk
 #Include DatasetClass.ahk
 
+; Exit codes
+FailedToGetDatabase := 1 ;TODO: Erase the files.
+
 author := "TheBrunoCA"
 repository := "BuscaPMC"
 authorGitLink := "https://api.github.com/" author
@@ -25,9 +28,9 @@ executablePath := instalationDir "/" repository ".exe"
 configIniPath := instalationDir "/" repository "_config.ini"
 
 cmedUrl := "https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos"
-pmcDatabaseUrl := ""
-datasetPath := instalationDir "/pmc_teste.xls"
-;productDataset := Dataset(datasetPath)
+cmedHtml := GetPageContent(cmedUrl)
+pmcDatabaseUrl := getPmcDatabaseUrl()
+pmcDatabaseName := getPmcDatabaseName()
 
 MainGui := Gui("-MaximizeBox -Resize MinSize300x300", repository " por " author)
 searchTxt := MainGui.AddText("vTxtSearch", "Selecione pelo o que deseja pesquisar")
@@ -45,6 +48,7 @@ searchBtnClicked(args*){
 if !isInstalled(){
     installApp()
 }
+
 checkDatabases()
 
 
@@ -66,8 +70,61 @@ installApp(){
 
 checkDatabases(){
     inifile := Ini(configIniPath)
-    if !inifile.hasValue("DATABASES", "pmc"){
-        html := GetPageContent(cmedUrl)
+    if IsOnline() == false{
+        if inifile["databases", "pmc_name"] == ""{
+            MsgBox("Falha ao carregar e/ou baixar o banco de dados, o aplicativo sera fechado.")
+            ExitApp(FailedToGetDatabase)
+        }
+    }
+
+    if inifile["databases", "pmc_name", "wow"] != pmcDatabaseName{
+        if FileExist(inifile["databases", "pmc_path"]) == ""
+            MsgBox("O aplicativo irá baixar os bancos de dados, isso pode demorar. Ele ira abrir sozinho ao terminar.")
+
+        else{
+            answer := MsgBox("Atualizacao disponivel para os bancos de dados, deseja atualizar?`nAltamente recomendado.", , "0x4")
+            if answer == "No"
+                return
+            MsgBox("O aplicativo irá baixar os bancos de dados, isso pode demorar. Ele ira abrir sozinho ao terminar.")
+        }
+
+        try{
+            FileDelete(inifile["databases", "pmc_path"])
+        }
+        inifile["databases", "pmc_name", "test"] := pmcDatabaseName
+        inifile["databases", "pmc_url"] := pmcDatabaseUrl
+        inifile["databases", "pmc_path"] := instalationDir "\" pmcDatabaseName
+        Download(pmcDatabaseUrl, inifile["databases", "pmc_path"])
+    }
+}
+
+getPmcDatabaseName(){
+    if pmcDatabaseUrl == ""
+        return ""
+    name := StrSplit(pmcDatabaseUrl, "arquivos/")[2]
+    name := StrSplit(name, "/")[1]
+
+    return name
+}
+
+getPmcDatabaseUrl(){
+    if !InStr(cmedHtml, "Preço máximo"){
+        MsgBox("Falha ao pegar banco de dados na CMED!")
+        return ""
+    }
+    url := SubStr(cmedHtml, InStr(cmedHtml, "Preço máximo - pdf"))
+    url := StrSplit(url, "Preço máximo - xls")[1]
+    url := StrSplit(url, "href=")[2]
+    url := StrReplace(url, "`n", "")
+    url := StrReplace(url, "   ", "")
+    url := StrSplit(url, "><")[1]
+    url := StrReplace(url, '"', "")
+
+    return url
+}
+
+getPMCDatabaseaaa(){
+    html := GetPageContent(cmedUrl)
         if !InStr(html, "Preço máximo - xls"){
             MsgBox("Falha ao pegar banco de dados na CMED.")
         }
@@ -83,10 +140,4 @@ checkDatabases(){
         databaseName := GetFromSimpleArray(databaseName, "arquivos")
         MsgBox(downloadLink)
         MsgBox(databaseName)
-
-    }
-}
-
-getPMCDatabase(){
-    
 }
