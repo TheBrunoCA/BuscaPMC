@@ -12,7 +12,6 @@ VERSION := 0.01
 
 #Include ..\libraries\Bruno-Functions\ImportAllList.ahk
 #Include ..\libraries\Github-Updater.ahk\github-updater.ahk
-#Include DatasetClass.ahk
 
 ; Exit codes
 FailedToGetDatabase := 1 ;TODO: Erase the files.
@@ -26,6 +25,7 @@ github := Git(author, repository)
 
 instalationDir := A_AppData "\" author "\" repository
 configIniPath := instalationDir "\" repository "_config.ini"
+inifile := Ini(configIniPath)
 
 cmedUrl := "https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos"
 cmedHtml := GetPageContent(cmedUrl)
@@ -55,6 +55,9 @@ if not isInstalled(){
 }
 checkDatabases()
 checkVersion()
+
+
+
 MainGui.Show()
 
 
@@ -62,13 +65,13 @@ MainGui.Show()
 
 ; Functions
 isInstalled(){
-    return IniRead(configIniPath, "info", "isInstalled", false) == true
+    return inifile["info", "isInstalled", false] == true
 }
 
 installApp(){
     NewDir(instalationDir)
     NewIni(configIniPath)
-    IniWrite(true, configIniPath, "info", "isInstalled")
+    inifile["info", "isInstalled"] := true
 }
 
 updateApp(){
@@ -89,7 +92,6 @@ updateApp(){
 }
 
 checkVersion(){
-    inifile := Ini(configIniPath)
     if VERSION != inifile["info", "version", "0"]
         inifile["info", "version"] := VERSION
 
@@ -107,7 +109,6 @@ checkVersion(){
 }
 
 checkDatabases(){
-    inifile := Ini(configIniPath)
     online := IsOnline()
     forcedUpdatePmc := false
     updatePmc := false
@@ -151,7 +152,6 @@ deleteDatabases(args*){
 }
 
 corruptDatabases(args*){
-    inifile := Ini(configIniPath)
     inifile["databases", "pmc_name"] := "Error"
     inifile["databases", "pmc_path"] := "Error"
     inifile["databases", "pmc_url"] := "Error"
@@ -159,7 +159,6 @@ corruptDatabases(args*){
 }
 
 installPmcDatabase(){
-    inifile := Ini(configIniPath)
     try{
         FileDelete(inifile["databases", "pmc_path"])
     }

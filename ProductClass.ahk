@@ -1,5 +1,0 @@
-Class Product {
-    __New() {
-        
-    }
-}
