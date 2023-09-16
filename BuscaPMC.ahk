@@ -4,9 +4,9 @@
  * @author TheBrunoCA
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
- * @version 0.0.1
+ * @version 0.01
  ***********************************************************************/
-VERSION := "0.0.1"
+VERSION := 0.01
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -16,6 +16,7 @@ VERSION := "0.0.1"
 
 ; Exit codes
 FailedToGetDatabase := 1 ;TODO: Erase the files.
+Updating := 2
 
 author := "TheBrunoCA"
 repository := "BuscaPMC"
@@ -23,79 +24,149 @@ authorGitLink := "https://api.github.com/" author
 repositoryGitLink := author "/" repository
 github := Git(author, repository)
 
-instalationDir := A_AppData "/" author "/" repository
-executablePath := instalationDir "/" repository ".exe"
-configIniPath := instalationDir "/" repository "_config.ini"
+instalationDir := A_AppData "\" author "\" repository
+configIniPath := instalationDir "\" repository "_config.ini"
 
 cmedUrl := "https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos"
 cmedHtml := GetPageContent(cmedUrl)
 pmcDatabaseUrl := getPmcDatabaseUrl()
 pmcDatabaseName := getPmcDatabaseName()
 
+; Main user interface
 MainGui := Gui("-MaximizeBox -Resize MinSize300x300", repository " por " author)
 searchTxt := MainGui.AddText("vTxtSearch", "Selecione pelo o que deseja pesquisar")
 searchEanRdBtn := MainGui.AddRadio("vRadioBtnSearchEan Checked Group", "Codigo de barras")
 searchDescRdBtn := MainGui.AddRadio("vRadioBtnSearchDesc", "Descricao")
 searchCompRdBtn := MainGui.AddRadio("vRadioBtnSearchComp", "Composicao")
-searchTEdit := MainGui.AddEdit("vTEditSearch Uppercase")
-searchSubmitBtn := MainGui.AddButton("vBtnSearch x135 y81", "Buscar")
+searchTEdit := MainGui.AddEdit("vTEditSearch Uppercase w180")
+searchSubmitBtn := MainGui.AddButton("vBtnSearch x192 y79 Default", "Buscar")
+versionTxt := MainGui.AddText("x10 y110", "Versao: " VERSION)
 searchSubmitBtn.OnEvent("Click", searchBtnClicked)
+
+
 
 searchBtnClicked(args*){
     MsgBox(isInstalled())
 }
 
-if !isInstalled(){
+
+if not isInstalled(){
     installApp()
 }
-
 checkDatabases()
-
-
-
+checkVersion()
 MainGui.Show()
+
 
 
 
 ; Functions
 isInstalled(){
-    return FileExist(executablePath) != ""
+    return IniRead(configIniPath, "info", "isInstalled", false) == true
 }
 
 installApp(){
     NewDir(instalationDir)
     NewIni(configIniPath)
+    IniWrite(true, configIniPath, "info", "isInstalled")
+}
+
+updateApp(){
+    if not A_IsCompiled
+        return
+
+    github.DownloadLatest(A_Temp, A_ScriptName)
+    batfile := BatWrite(instalationDir "\instalation_bat.bat")
+    batfile.TimeOut(5)
+    batfile.MoveFile(A_ScriptFullPath, A_Temp "\old_" A_ScriptName)
+    batfile.TimeOut(5)
+    batfile.MoveFile(A_Temp "\" A_ScriptName, A_ScriptFullPath)
+    batfile.TimeOut(5)
+    batfile.Start(A_ScriptFullPath)
+    batfile.TimeOut(10)
+    Run(batfile.path)
+    ExitApp(Updating)
+}
+
+checkVersion(){
+    inifile := Ini(configIniPath)
+    if VERSION != inifile["info", "version", "0"]
+        inifile["info", "version"] := VERSION
+
+    if github.version == ""{
+        return
+    }
+    if github.version > inifile["info", "version"]{
+        answer := MsgBox("Nova versao do aplicativo disponivel, deseja atualizar?", , "0x4")
+        if answer == "No"
+            return
+        updateApp()
+    }
+        
     
 }
 
 checkDatabases(){
     inifile := Ini(configIniPath)
-    if IsOnline() == false{
-        if inifile["databases", "pmc_name"] == ""{
-            MsgBox("Falha ao carregar e/ou baixar o banco de dados, o aplicativo sera fechado.")
+    online := IsOnline()
+    forcedUpdatePmc := false
+    updatePmc := false
+
+    if inifile["databases", "pmc_name"] == "Error"{
+        deleteDatabases()
+    }
+
+    if online{
+        if not FileExist(inifile["databases", "pmc_path"])
+            forcedUpdatePmc := true
+        else if inifile["databases", "pmc_name"] != pmcDatabaseName
+            updatePmc := true
+
+    }
+    else{
+        if not FileExist(inifile["databases", "pmc_path"]){
+            MsgBox("Falha ao carregar e/ou baixar banco de dados, o aplicativo sera fechado.")
             ExitApp(FailedToGetDatabase)
         }
     }
 
-    if inifile["databases", "pmc_name", "wow"] != pmcDatabaseName{
-        if FileExist(inifile["databases", "pmc_path"]) == ""
-            MsgBox("O aplicativo irá baixar os bancos de dados, isso pode demorar. Ele ira abrir sozinho ao terminar.")
-
-        else{
-            answer := MsgBox("Atualizacao disponivel para os bancos de dados, deseja atualizar?`nAltamente recomendado.", , "0x4")
-            if answer == "No"
-                return
-            MsgBox("O aplicativo irá baixar os bancos de dados, isso pode demorar. Ele ira abrir sozinho ao terminar.")
-        }
-
-        try{
-            FileDelete(inifile["databases", "pmc_path"])
-        }
-        inifile["databases", "pmc_name", "test"] := pmcDatabaseName
-        inifile["databases", "pmc_url"] := pmcDatabaseUrl
-        inifile["databases", "pmc_path"] := instalationDir "\" pmcDatabaseName
-        Download(pmcDatabaseUrl, inifile["databases", "pmc_path"])
+    if forcedUpdatePmc{
+        MsgBox("O aplicativo precisa atualizar o banco de dados, isso pode demorar.", , "T5")
+        installPmcDatabase()
     }
+    else if updatePmc{
+        answer := MsgBox("Foi encontrada uma atualizacao do banco de dados, deseja atualizar?`nAltamente recomendado.", , "0x4")
+        if answer == "Yes"
+            installPmcDatabase()
+    }
+
+
+
+}
+
+deleteDatabases(args*){
+    try{
+        FileDelete(instalationDir "\*.xls")
+    }
+}
+
+corruptDatabases(args*){
+    inifile := Ini(configIniPath)
+    inifile["databases", "pmc_name"] := "Error"
+    inifile["databases", "pmc_path"] := "Error"
+    inifile["databases", "pmc_url"] := "Error"
+    ExitApp(FailedToGetDatabase)
+}
+
+installPmcDatabase(){
+    inifile := Ini(configIniPath)
+    try{
+        FileDelete(inifile["databases", "pmc_path"])
+    }
+    inifile["databases", "pmc_name", "test"] := pmcDatabaseName
+    inifile["databases", "pmc_url"] := pmcDatabaseUrl
+    inifile["databases", "pmc_path"] := instalationDir "\" pmcDatabaseName
+    downloadFile(pmcDatabaseUrl, inifile["databases", "pmc_path"], , , corruptDatabases)
 }
 
 getPmcDatabaseName(){
@@ -108,7 +179,7 @@ getPmcDatabaseName(){
 }
 
 getPmcDatabaseUrl(){
-    if !InStr(cmedHtml, "Preço máximo"){
+    if not InStr(cmedHtml, "Preço máximo"){
         MsgBox("Falha ao pegar banco de dados na CMED!")
         return ""
     }
@@ -121,23 +192,4 @@ getPmcDatabaseUrl(){
     url := StrReplace(url, '"', "")
 
     return url
-}
-
-getPMCDatabaseaaa(){
-    html := GetPageContent(cmedUrl)
-        if !InStr(html, "Preço máximo - xls"){
-            MsgBox("Falha ao pegar banco de dados na CMED.")
-        }
-        position := InStr(html, "Preço máximo - pdf")
-        html := SubStr(html, position)
-        html := StrSplit(html, "Preço máximo - xls")
-        downloadLink := SubStr(html[1], InStr(html[1], "href"))
-        downloadLink := StrSplit(downloadLink, "=")
-        downloadLink := StrSplit(downloadLink[2], ">")
-        downloadLink := downloadLink[1]
-        downloadLink := StrReplace(downloadLink, '"', "")
-        databaseName := StrSplit(downloadLink, "/")
-        databaseName := GetFromSimpleArray(databaseName, "arquivos")
-        MsgBox(downloadLink)
-        MsgBox(databaseName)
 }
