@@ -74,6 +74,10 @@ searchBtnClicked(args*){
             }
         }
         item := getItemFromPmcDatabaseByEan(ean)
+        if not item{
+            MsgBox("Nao foi encontrado nenhum produto com esse codigo de barras", "Erro", "0x1000 T10")
+            return
+        }
         showItem(item)
         searchTEdit.Value := ""
     }
@@ -416,8 +420,7 @@ getItemFromPmcDatabaseByEan(ean){
     item := ItemClass()
     item.row_on_database := pmcDatabase.getValueRow(ean, eanColumn)
     if not item.row_on_database{
-        MsgBox("Nao foi encontrado nenhum produto com esse codigo de barras", "Erro", "0x1000 T10")
-        return
+        return false
     }
     mProgress += 1
     item.composition := pmcDatabase.getValue(inifile["positions_pmc", "composition"] item.row_on_database)
