@@ -420,6 +420,7 @@ getItemFromPmcDatabaseByEan(ean){
     item := ItemClass()
     item.row_on_database := pmcDatabase.getValueRow(ean, eanColumn)
     if not item.row_on_database{
+        load.stop()
         return false
     }
     mProgress += 1
