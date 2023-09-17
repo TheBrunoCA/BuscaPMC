@@ -4,9 +4,8 @@
  * @author TheBrunoCA
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
- * @version 0.11
  ***********************************************************************/
-VERSION := "0.11"
+VERSION := "0.12"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -133,14 +132,10 @@ updateApp(){
 
     github.DownloadLatest(A_Temp, A_ScriptName)
     batfile := BatWrite(instalationDir "\instalation_bat.bat")
-    batfile.TimeOut(5)
     batfile.MoveFile(A_ScriptFullPath, A_Temp "\old_" A_ScriptName)
-    batfile.TimeOut(5)
     batfile.MoveFile(A_Temp "\" A_ScriptName, A_ScriptFullPath)
-    batfile.TimeOut(5)
     batfile.Start(A_ScriptFullPath)
-    batfile.TimeOut(10)
-    Run(batfile.path)
+    Run(batfile.path, , "Hide")
     ExitApp(Updating)
 }
 
