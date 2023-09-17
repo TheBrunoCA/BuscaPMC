@@ -409,9 +409,12 @@ getItemFromPmcDatabaseByEan(ean){
 
     load := loadingScreen("Buscando dados do item...", repository " por " author, &progress, mProgress)
     load.start()
+    
+    eanColumn := inifile["positions_pmc", "ean"]
+    eanColumn .= ":" eanColumn
 
     item := ItemClass()
-    item.row_on_database := pmcDatabase.getValueRow(ean)
+    item.row_on_database := pmcDatabase.getValueRow(ean, eanColumn)
     mProgress += 1
     item.composition := pmcDatabase.getValue(inifile["positions_pmc", "composition"] item.row_on_database)
     mProgress += 1
