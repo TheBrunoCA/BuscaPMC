@@ -4,9 +4,9 @@
  * @author TheBrunoCA
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
- * @version 0.10
+ * @version 0.11
  ***********************************************************************/
-VERSION := 0.10
+VERSION := "0.11"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
