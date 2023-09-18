@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.121"
+VERSION := "0.122"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -39,7 +39,7 @@ progressCounter += 1
 instalationDir := A_AppData "\" author "\" repository
 configIniPath := instalationDir "\" repository "_config.ini"
 inifile := Ini(configIniPath)
-if inifile["info", "exe_path"] != A_ScriptFullPath and not A_IsCompiled
+if inifile["info", "exe_path"] != A_ScriptFullPath and A_IsCompiled
     inifile["info", "exe_path"] := A_ScriptFullPath
 
 progressCounter += 1
