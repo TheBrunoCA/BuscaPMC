@@ -73,7 +73,13 @@ searchBtnClicked(args*){
         searchTEdit.Value := ""
         return
     } else{
-        showListOfItems(getListOfItemsByDesc(text))
+        list := getListOfItemsByDesc(text)
+        if not list.Count{
+            MsgBox("Nao foi encontrado nenhum item com essa descricao", , "0x1000 T10")
+            searchTEdit.Value := ""
+            return
+        }
+        showListOfItems(list)
     }
 }
 
@@ -149,6 +155,7 @@ installApp(){
     NewDir(instalationDir)
     NewIni(configIniPath)
     inifile["info", "isInstalled"] := true
+    inifile["config", "max_items_on_list"] := 50
 
 }
 
@@ -442,14 +449,20 @@ getItemFromEan(ean){
 }
 
 getListOfItemsByDesc(desc){
+    pg := 0
+    mpg := 3
+    loading := loadingScreen("Carregando lista", "Carregando", &pg, mpg)
+    loading.start()
     items := Map()
     lastRow := "40"
     rowCount := pmcDatabase.rowCount
+    maxItems := inifile["config", "max_items_on_list", 100]
     nameCol := inifile["positions_pmc", "name"]
     compCol := inifile["positions_pmc", "composition"]
+    pg += 1
     loop {
         row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
-        if not row
+        if not row or items.Count >= maxItems
             break
 
         if items.Has(row)
@@ -460,10 +473,11 @@ getListOfItemsByDesc(desc){
         items[row] := item
         lastRow := row + 1
     }
+    pg += 1
     lastRow := "40"
     loop {
         row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
-        if not row
+        if not row or items.Count >= maxItems
             break
 
         if items.Has(row)
@@ -473,7 +487,8 @@ getListOfItemsByDesc(desc){
         items[row] := item
         lastRow := row + 1
     }
-
+    pg += 1
+    loading.stop()
     return items
 }
 
