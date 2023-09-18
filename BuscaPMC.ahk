@@ -451,8 +451,8 @@ getItemFromEan(ean){
 getListOfItemsByDesc(desc){
     pg := 0
     mpg := 3
-    loading := loadingScreen("Carregando lista", "Carregando", &pg, mpg)
-    loading.start()
+    load := loadingScreen("Carregando lista", "Carregando", &pg, mpg)
+    load.start()
     items := Map()
     lastRow := "40"
     rowCount := pmcDatabase.rowCount
@@ -460,6 +460,9 @@ getListOfItemsByDesc(desc){
     nameCol := inifile["positions_pmc", "name"]
     compCol := inifile["positions_pmc", "composition"]
     pg += 1
+
+    l := loadingScreen("Buscando por nome", repository " por " author, &items.Count, maxItems)
+    l.start()
     loop {
         row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
         if not row or items.Count >= maxItems
@@ -473,8 +476,11 @@ getListOfItemsByDesc(desc){
         items[row] := item
         lastRow := row + 1
     }
+    l.stop()
     pg += 1
     lastRow := "40"
+    l := loadingScreen("Buscando por composicao", repository " por " author, &items.Count, maxItems)
+    l.start()
     loop {
         row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
         if not row or items.Count >= maxItems
@@ -487,8 +493,9 @@ getListOfItemsByDesc(desc){
         items[row] := item
         lastRow := row + 1
     }
+    l.stop()
     pg += 1
-    loading.stop()
+    load.stop()
     return items
 }
 
