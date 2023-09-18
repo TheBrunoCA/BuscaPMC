@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.124"
+VERSION := "0.130"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -54,33 +54,26 @@ progressCounter += 1
 ; Main user interface
 MainGui := Gui("-MaximizeBox -Resize MinSize300x300", repository " por " author)
 searchTxt := MainGui.AddText("vTxtSearch", "Selecione pelo o que deseja pesquisar")
-searchEanRdBtn := MainGui.AddRadio("vRadioBtnSearchEan Checked Group", "Codigo de barras")
-;searchDescRdBtn := MainGui.AddRadio("vRadioBtnSearchDesc", "Descricao")
-;searchCompRdBtn := MainGui.AddRadio("vRadioBtnSearchComp", "Composicao")
-searchTEdit := MainGui.AddEdit("vTEditSearch Uppercase w180")
-searchSubmitBtn := MainGui.AddButton("vBtnSearch x192 y42 Default", "Buscar")
-versionTxt := MainGui.AddText("x10 y110", "Versao: " VERSION)
+searchTEdit := MainGui.AddEdit("vTEditSearch Uppercase w180 yp+20")
+searchTEdit.Focus()
+searchSubmitBtn := MainGui.AddButton("vBtnSearch x+5 yp Default", "Buscar")
+versionTxt := MainGui.AddText("yp+30", "Versao: " VERSION)
 searchSubmitBtn.OnEvent("Click", searchBtnClicked)
 
 searchBtnClicked(args*){
-    if searchEanRdBtn.Value == true{
-        ean := searchTEdit.Value
-        try{
-            temp := ean * 2
-        } catch Error as e{
-            if InStr(e.Message, "String"){
-                MsgBox("O campo deve conter apenas numeros.")
-                searchTEdit.Value := ""
-                return
-            }
-        }
-        item := getItemFromPmcDatabaseByEan(ean)
+    text := searchTEdit.Value
+    if IsNumber(text){
+        item := getItemFromEan(text)
         if not item{
-            MsgBox("Nao foi encontrado nenhum produto com esse codigo de barras", "Erro", "0x1000 T10")
+            MsgBox("Nao foi encontrado nenhum item com esse codigo de barras", , "0x1000 T10")
+            searchTEdit.Value := ""
             return
         }
         showItem(item)
         searchTEdit.Value := ""
+        return
+    } else{
+        showListOfItems(getListOfItemsByDesc(text))
     }
 }
 
@@ -102,9 +95,33 @@ try{
 try{
     pmcDatabase := ExcelClass(inifile["databases", "pmc_path"])
 }catch{
-    MsgBox("O banco de dados esta corrompido. O aplicativo ira tentar baixa-lo novamente.")
-    deleteDatabases()
-    corruptDatabases()
+    if ProcessExist("EXCEL.EXE"){
+        answer := MsgBox("O Excel precisa estar fechado para o aplicativo funcionar, por favor feche-o.`n" 
+        "Se apertar OK, o Excel sera fechado automaticamente e o que nao tiver sido salvo sera perdido.`n" 
+        "Aperte CANCELAR para cancelar a abertura do aplicativo.", , "0x1")
+
+        if answer == "OK"{
+            try{
+                WinClose("Excel")
+                ProcessClose("EXCEL.EXE")
+            }
+        }
+        else{
+            ExitApp()
+        }
+        
+        try{
+            pmcDatabase := ExcelClass(inifile["databases", "pmc_path"])
+        }catch{
+            MsgBox("O banco de dados esta corrompido. O aplicativo ira tentar baixa-lo novamente.")
+            deleteDatabases()
+            corruptDatabases()
+        }
+    }else{
+        MsgBox("O banco de dados esta corrompido. O aplicativo ira tentar baixa-lo novamente.")
+        deleteDatabases()
+        corruptDatabases()
+    }
 }
 
 
@@ -415,114 +432,76 @@ getPmcDatabaseUrl(){
     return url
 }
 
-getItemFromPmcDatabaseByEan(ean){
-    progress := 0
-    mProgress := 45
-
-    load := loadingScreen("Buscando dados do item...", repository " por " author, &progress, mProgress)
-    load.start()
-    
+getItemFromEan(ean){
     eanColumn := inifile["positions_pmc", "ean"]
     eanColumn .= ":" eanColumn
 
     item := ItemClass()
-    item.row_on_database := pmcDatabase.getValueRow(ean, eanColumn)
-    if not item.row_on_database{
-        load.stop()
-        return false
-    }
-    mProgress += 1
-    item.composition := pmcDatabase.getValue(inifile["positions_pmc", "composition"] item.row_on_database)
-    mProgress += 1
-    item.lab_cnpj := pmcDatabase.getValue(inifile["positions_pmc", "lab_cnpj"] item.row_on_database)
-    mProgress += 1
-    item.lab_name := pmcDatabase.getValue(inifile["positions_pmc", "lab_name"] item.row_on_database)
-    mProgress += 1
-    item.ggrem := pmcDatabase.getValue(inifile["positions_pmc", "ggrem"] item.row_on_database)
-    mProgress += 1
-    item.ms := pmcDatabase.getValue(inifile["positions_pmc", "ms"] item.row_on_database)
-    mProgress += 1
-    item.ean := pmcDatabase.getValue(inifile["positions_pmc", "ean"] item.row_on_database)
-    mProgress += 1
-    item.ean2 := pmcDatabase.getValue(inifile["positions_pmc", "ean2"] item.row_on_database)
-    mProgress += 1
-    item.name := pmcDatabase.getValue(inifile["positions_pmc", "name"] item.row_on_database)
-    mProgress += 1
-    item.presentation := pmcDatabase.getValue(inifile["positions_pmc", "presentation"] item.row_on_database)
-    mProgress += 1
-    item.class := pmcDatabase.getValue(inifile["positions_pmc", "class"] item.row_on_database)
-    mProgress += 1
-    item.type := pmcDatabase.getValue(inifile["positions_pmc", "type"] item.row_on_database)
-    mProgress += 1
-    item.price_control := pmcDatabase.getValue(inifile["positions_pmc", "price_control"] item.row_on_database)
-    mProgress += 1
-    item.pf_untributed := pmcDatabase.getValue(inifile["positions_pmc", "pf_untributed"] item.row_on_database)
-    mProgress += 1
-    item.pf_0 := pmcDatabase.getValue(inifile["positions_pmc", "pf_0"] item.row_on_database)
-    mProgress += 1
-    item.pf_12 := pmcDatabase.getValue(inifile["positions_pmc", "pf_12"] item.row_on_database)
-    mProgress += 1
-    item.pf_17 := pmcDatabase.getValue(inifile["positions_pmc", "pf_17"] item.row_on_database)
-    mProgress += 1
-    item.pf_17_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_alc"] item.row_on_database)
-    mProgress += 1
-    item.pf_17_5 := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_5"] item.row_on_database)
-    mProgress += 1
-    item.pf_17_5_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_5_alc"] item.row_on_database)
-    mProgress += 1
-    item.pf_18 := pmcDatabase.getValue(inifile["positions_pmc", "pf_18"] item.row_on_database)
-    mProgress += 1
-    item.pf_18_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_18_alc"] item.row_on_database)
-    mProgress += 1
-    item.pf_19 := pmcDatabase.getValue(inifile["positions_pmc", "pf_19"] item.row_on_database)
-    mProgress += 1
-    item.pf_20 := pmcDatabase.getValue(inifile["positions_pmc", "pf_20"] item.row_on_database)
-    mProgress += 1
-    item.pf_21 := pmcDatabase.getValue(inifile["positions_pmc", "pf_21"] item.row_on_database)
-    mProgress += 1
-    item.pf_22 := pmcDatabase.getValue(inifile["positions_pmc", "pf_22"] item.row_on_database)
-    mProgress += 1
-    item.pmc_0 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_0"] item.row_on_database)
-    mProgress += 1
-    item.pmc_12 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_12"] item.row_on_database)
-    mProgress += 1
-    item.pmc_17 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17"] item.row_on_database)
-    mProgress += 1
-    item.pmc_17_alc := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_alc"] item.row_on_database)
-    mProgress += 1
-    item.pmc_17_5 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_5"] item.row_on_database)
-    mProgress += 1
-    item.pmc_17_5_alc := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_5_alc"] item.row_on_database)
-    mProgress += 1
-    item.pmc_18 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_18"] item.row_on_database)
-    mProgress += 1
-    item.pmc_19 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_19"] item.row_on_database)
-    mProgress += 1
-    item.pmc_20 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_20"] item.row_on_database)
-    mProgress += 1
-    item.pmc_21 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_21"] item.row_on_database)
-    mProgress += 1
-    item.pmc_22 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_22"] item.row_on_database)
-    mProgress += 1
-    item.hospital_only := pmcDatabase.getValue(inifile["positions_pmc", "hospital_only"] item.row_on_database)
-    mProgress += 1
-    item.cap := pmcDatabase.getValue(inifile["positions_pmc", "cap"] item.row_on_database)
-    mProgress += 1
-    item.confaz_87 := pmcDatabase.getValue(inifile["positions_pmc", "confaz_87"] item.row_on_database)
-    mProgress += 1
-    item.icms_0 := pmcDatabase.getValue(inifile["positions_pmc", "icms_0"] item.row_on_database)
-    mProgress += 1
-    item.recursal := pmcDatabase.getValue(inifile["positions_pmc", "recursal"] item.row_on_database)
-    mProgress += 1
-    item.pis_cofins := pmcDatabase.getValue(inifile["positions_pmc", "pis_cofins"] item.row_on_database)
-    mProgress += 1
-    item.commercialized := pmcDatabase.getValue(inifile["positions_pmc", "commercialized"] item.row_on_database)
-    mProgress += 1
-    item.stripe := pmcDatabase.getValue(inifile["positions_pmc", "stripe"] item.row_on_database)
-    mProgress += 1
-
-    load.stop()
+    item.getItemFromRow(pmcDatabase.getValueRow(ean, eanColumn))
     return item
+}
+
+getListOfItemsByDesc(desc){
+    items := Map()
+    lastRow := "40"
+    rowCount := pmcDatabase.rowCount
+    nameCol := inifile["positions_pmc", "name"]
+    compCol := inifile["positions_pmc", "composition"]
+    loop {
+        row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
+        if not row
+            break
+
+        if items.Has(row)
+            continue
+
+        item := ItemClass()
+        item.getItemFromRow(row)
+        items[row] := item
+        lastRow := row + 1
+    }
+    lastRow := "40"
+    loop {
+        row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
+        if not row
+            break
+
+        if items.Has(row)
+            continue
+        item := ItemClass()
+        item.getItemFromRow(row)
+        items[row] := item
+        lastRow := row + 1
+    }
+
+    return items
+}
+
+showListOfItems(itemsMap){
+    gItems := Gui("-MaximizeBox", "Lista de itens")
+    LV := gItems.AddListView( "r20 w1000", ["Codigo de barras", "Nome", "Composicao", "Apresentacao", "Laboratorio", 
+                                        "Tipo", "Preco", "PF", "PMC", "Lista"])
+    LV.OnEvent("DoubleClick", doubleClickedItem)
+
+    for row, item in itemsMap{
+        pf := item.type== "Genérico" ? item.pf_12 : item.pf_18
+        pmc := item.type== "Genérico" ? item.pmc_12 : item.pmc_18
+
+        LV.Add(, item.ean, item.name, item.composition, item.presentation, item.lab_name, item.type,
+                item.price_control, pf, pmc, item.pis_cofins)
+    }
+
+    LV.ModifyCol
+    LV.ModifyCol(5, "Integer")
+    LV.ModifyCol(8, "Float")
+    LV.ModifyCol(9, "Float")
+
+    gItems.Show()
+}
+
+doubleClickedItem(LV, RowNumber){
+    item := getItemFromEan(LV.GetText(RowNumber))
+    showItem(item)
 }
 
 showItem(item){
@@ -600,6 +579,55 @@ class ItemClass{
         this.pis_cofins := ""
         this.commercialized := ""
         this.stripe := ""
+    }
+
+    getItemFromRow(row := this.row_on_database){
+        if not row
+            return false
+        this.composition := pmcDatabase.getValue(inifile["positions_pmc", "composition"] row)
+        this.lab_cnpj := pmcDatabase.getValue(inifile["positions_pmc", "lab_cnpj"] row)
+        this.lab_name := pmcDatabase.getValue(inifile["positions_pmc", "lab_name"] row)
+        this.ggrem := pmcDatabase.getValue(inifile["positions_pmc", "ggrem"] row)
+        this.ms := pmcDatabase.getValue(inifile["positions_pmc", "ms"] row)
+        this.ean := pmcDatabase.getValue(inifile["positions_pmc", "ean"] row)
+        this.ean2 := pmcDatabase.getValue(inifile["positions_pmc", "ean2"] row)
+        this.name := pmcDatabase.getValue(inifile["positions_pmc", "name"] row)
+        this.presentation := pmcDatabase.getValue(inifile["positions_pmc", "presentation"] row)
+        this.class := pmcDatabase.getValue(inifile["positions_pmc", "class"] row)
+        this.type := pmcDatabase.getValue(inifile["positions_pmc", "type"] row)
+        this.price_control := pmcDatabase.getValue(inifile["positions_pmc", "price_control"] row)
+        this.pf_untributed := pmcDatabase.getValue(inifile["positions_pmc", "pf_untributed"] row)
+        this.pf_0 := pmcDatabase.getValue(inifile["positions_pmc", "pf_0"] row)
+        this.pf_12 := pmcDatabase.getValue(inifile["positions_pmc", "pf_12"] row)
+        this.pf_17 := pmcDatabase.getValue(inifile["positions_pmc", "pf_17"] row)
+        this.pf_17_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_alc"] row)
+        this.pf_17_5 := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_5"] row)
+        this.pf_17_5_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_17_5_alc"] row)
+        this.pf_18 := pmcDatabase.getValue(inifile["positions_pmc", "pf_18"] row)
+        this.pf_18_alc := pmcDatabase.getValue(inifile["positions_pmc", "pf_18_alc"] row)
+        this.pf_19 := pmcDatabase.getValue(inifile["positions_pmc", "pf_19"] row)
+        this.pf_20 := pmcDatabase.getValue(inifile["positions_pmc", "pf_20"] row)
+        this.pf_21 := pmcDatabase.getValue(inifile["positions_pmc", "pf_21"] row)
+        this.pf_22 := pmcDatabase.getValue(inifile["positions_pmc", "pf_22"] row)
+        this.pmc_0 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_0"] row)
+        this.pmc_12 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_12"] row)
+        this.pmc_17 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17"] row)
+        this.pmc_17_alc := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_alc"] row)
+        this.pmc_17_5 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_5"] row)
+        this.pmc_17_5_alc := pmcDatabase.getValue(inifile["positions_pmc", "pmc_17_5_alc"] row)
+        this.pmc_18 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_18"] row)
+        this.pmc_19 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_19"] row)
+        this.pmc_20 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_20"] row)
+        this.pmc_21 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_21"] row)
+        this.pmc_22 := pmcDatabase.getValue(inifile["positions_pmc", "pmc_22"] row)
+        this.hospital_only := pmcDatabase.getValue(inifile["positions_pmc", "hospital_only"] row)
+        this.cap := pmcDatabase.getValue(inifile["positions_pmc", "cap"] row)
+        this.confaz_87 := pmcDatabase.getValue(inifile["positions_pmc", "confaz_87"] row)
+        this.icms_0 := pmcDatabase.getValue(inifile["positions_pmc", "icms_0"] row)
+        this.recursal := pmcDatabase.getValue(inifile["positions_pmc", "recursal"] row)
+        this.pis_cofins := pmcDatabase.getValue(inifile["positions_pmc", "pis_cofins"] row)
+        this.commercialized := pmcDatabase.getValue(inifile["positions_pmc", "commercialized"] row)
+        this.stripe := pmcDatabase.getValue(inifile["positions_pmc", "stripe"] row)
     }
 }
 
