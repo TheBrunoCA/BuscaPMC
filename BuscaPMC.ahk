@@ -138,20 +138,24 @@ installApp(){
 updateApp(){
     if not A_IsCompiled
         return
-
-    github.DownloadLatest(A_Temp, A_ScriptName)
-    batfile := BatWrite(instalationDir "\instalation_bat.bat")
-    batfile.MoveFile(A_ScriptFullPath, A_Temp "\old_" A_ScriptName)
-    batfile.MoveFile(A_Temp "\" A_ScriptName, A_ScriptFullPath)
-    batfile.Start(A_ScriptFullPath)
-    Run(batfile.path, , "Hide")
-    ExitApp(Updating)
+    if github.online{
+        github.DownloadLatest(A_Temp, A_ScriptName)
+        batfile := BatWrite(instalationDir "\instalation_bat.bat")
+        batfile.MoveFile(A_ScriptFullPath, A_Temp "\old_" A_ScriptName)
+        batfile.MoveFile(A_Temp "\" A_ScriptName, A_ScriptFullPath)
+        batfile.Start(A_ScriptFullPath)
+        Run(batfile.path, , "Hide")
+        ExitApp(Updating)
+    }
 }
 
 checkVersion(){
     if VERSION != inifile["info", "version", "0"]
         inifile["info", "version"] := VERSION
 
+    if not github.online
+        return
+    
     if github.version == ""{
         return
     }
