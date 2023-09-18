@@ -99,7 +99,14 @@ try{
         WinClose(inifile["databases", "pmc_name"])
 }
 
-pmcDatabase := ExcelClass(inifile["databases", "pmc_path"])
+try{
+    pmcDatabase := ExcelClass(inifile["databases", "pmc_path"])
+}catch{
+    MsgBox("O banco de dados esta corrompido. O aplicativo ira tentar baixa-lo novamente.")
+    deleteDatabases()
+    corruptDatabases()
+}
+
 
 progressCounter += 1
 
