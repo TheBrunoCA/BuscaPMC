@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.123"
+VERSION := "0.124"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -155,7 +155,7 @@ checkVersion(){
 
     if not github.online
         return
-    
+
     if github.version == ""{
         return
     }
