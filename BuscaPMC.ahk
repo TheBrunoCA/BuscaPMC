@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.122"
+VERSION := "0.123"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
