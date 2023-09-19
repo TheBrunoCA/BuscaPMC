@@ -5,8 +5,8 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION :=      "0.131"
-#Requires       AutoHotkey v2.0
+VERSION := "0.140"
+#Requires AutoHotkey v2.0
 #SingleInstance Force
 
 #Include ..\libraries\Bruno-Functions\ImportAllList.ahk
@@ -14,33 +14,38 @@ VERSION :=      "0.131"
 
 ; Exit codes
 FailedToGetDatabase := 1 ;TODO: Erase the files.
-Updating            := 2
+Updating := 2
 
 OnExit(exitFunc)
 
 
 progressCounter := 0
-maxProgress     := 8
+maxProgress := 8
 
-author      := "TheBrunoCA"
-repository  := "BuscaPMC"
+author := "TheBrunoCA"
+repository := "BuscaPMC"
 
 
 loading := loadingScreen("Carregando...", repository " por " author, &progressCounter, maxProgress)
 loading.start()
 
 
-authorGitLink       := "https://api.github.com/" author
-repositoryGitLink   := author "/" repository
-github              := Git(author, repository)
+authorGitLink := "https://api.github.com/" author
+repositoryGitLink := author "/" repository
+github := Git(author, repository)
 
 progressCounter += 1
 
-instalationDir      := A_AppData "\" author "\" repository
-configIniPath       := instalationDir "\" repository "_config.ini"
-inifile             := Ini(configIniPath)
-if inifile["info", "exe_path"]  != A_ScriptFullPath and A_IsCompiled
+instalationDir := A_AppData "\" author "\" repository
+configIniPath := instalationDir "\" repository "_config.ini"
+instalationBatPath := instalationDir "\instalation_bat.bat"
+inifile := Ini(configIniPath)
+if inifile["info", "exe_path"] != A_ScriptFullPath and A_IsCompiled
     inifile["info", "exe_path"] := A_ScriptFullPath
+wasUpdated := FileExist(instalationBatPath)
+if wasUpdated{
+    MsgBox(github.update_message, "O aplicativo foi atualizado", "0x1000 T30")
+}
 
 progressCounter += 1
 
@@ -53,15 +58,33 @@ progressCounter += 1
 
 ; Main user interface
 MainGui         := Gui("-MaximizeBox -Resize MinSize300x300", repository " por " author)
-searchTxt       := MainGui.AddText("vTxtSearch", "Selecione pelo o que deseja pesquisar")
-searchTEdit     := MainGui.AddEdit("vTEditSearch Uppercase w180 yp+20")
-searchTEdit.Focus()
+searchTxt       := MainGui.AddText("vTxtSearch", "Digite o que deseja pesquisar.")
+searchNameRdBtn := MainGui.AddRadio("Checked", "Nome")
+searchCompRdBtn := MainGui.AddRadio("yp x+10", "Composicao")
+searchTEdit     := MainGui.AddEdit("vTEditSearch Uppercase w180 yp+20 xm5")
+searchTEdit     .Focus()
 searchSubmitBtn := MainGui.AddButton("vBtnSearch x+5 yp Default", "Buscar")
-versionTxt      := MainGui.AddText("yp+30", "Versao: " VERSION)
-searchSubmitBtn.OnEvent("Click", searchBtnClicked)
+maxItemTxt      := MainGui.AddText("y+10 xm5", "Resultados maximos: ")
+maxItemTedit    := MainGui.AddEdit("yp-3 x+2 w30", inifile["config", "max_items_on_list", 0])
+maxItemTedit.OnEvent("Change", maxItemEditChange)
+maxItemEditChange(obj, info){
+    if obj.Value != emptyStr
+        inifile["config", "max_items_on_list"] := obj.Value
+    return
+}
+versionTxt      := MainGui.AddText("yp x+20", "Versao: " VERSION)
+searchSubmitBtn .OnEvent("Click", searchBtnClicked)
 
 searchBtnClicked(args*) {
     text := searchTEdit.Value
+    if StrReplace(text, " ", "") == emptyStr
+        return
+    if InStr(text, "LAB:"){
+        txt := StrSplit(text, "LAB:")
+        if StrReplace(txt[1], " ", "") == emptyStr
+            return
+    }
+
     if IsNumber(text) {
         item := getItemFromEan(text)
         if not item {
@@ -73,7 +96,8 @@ searchBtnClicked(args*) {
         searchTEdit.Value := ""
         return
     } else {
-        list := getListOfItemsByDesc(text)
+        method := searchNameRdBtn.Value == true ? "Name" : "Comp"
+        list := getListOfItemsByDesc(text, method)
         if not list.Count {
             MsgBox("Nao foi encontrado nenhum item com essa descricao", , "0x1000 T10")
             searchTEdit.Value := ""
@@ -162,7 +186,7 @@ updateApp() {
         return
     if github.online {
         github.DownloadLatest(A_Temp, A_ScriptName)
-        batfile := BatWrite(instalationDir "\instalation_bat.bat")
+        batfile := BatWrite(instalationBatPath)
         batfile.MoveFile(A_ScriptFullPath, A_Temp "\old_" A_ScriptName)
         batfile.MoveFile(A_Temp "\" A_ScriptName, A_ScriptFullPath)
         batfile.Start(A_ScriptFullPath)
@@ -178,7 +202,7 @@ checkVersion() {
     if not github.online
         return
 
-    if github.version == "" {
+    if github.version == emptyStr {
         return
     }
     if github.version > inifile["info", "version"] {
@@ -192,9 +216,9 @@ checkVersion() {
 }
 
 checkDatabases() {
-    online          := IsOnline()
+    online := IsOnline()
     forcedUpdatePmc := false
-    updatePmc       := false
+    updatePmc := false
 
     if inifile["databases", "pmc_name"] == "Error" {
         deleteDatabases()
@@ -204,7 +228,7 @@ checkDatabases() {
         if not FileExist(inifile["databases", "pmc_path"])
             forcedUpdatePmc := true
         else if inifile["databases", "pmc_name"] != pmcDatabaseName
-            updatePmc       := true
+            updatePmc := true
 
     }
     else {
@@ -227,148 +251,148 @@ checkDatabases() {
 
 checkPmcParameters() {
 
-    progress    := 0
-    mProgress   := 46
-    load        := loadingScreen("Carregando parametros...", repository " por " author, &progress, mProgress)
-    load        .start()
+    progress := 0
+    mProgress := 46
+    load := loadingScreen("Carregando parametros...", repository " por " author, &progress, mProgress)
+    load.start()
 
     if inifile["positions_pmc", "reset"] == true
         inifile.delete("positions_pmc")
     progress += 1
-    if inifile["positions_pmc", "composition"] == ""
-        inifile["positions_pmc", "composition"] := pmcDatabase.getValueColumn("SUBSTÂNCIA", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "composition"] == emptyStr
+        inifile["positions_pmc", "composition"]     := pmcDatabase.getValueColumn("SUBSTÂNCIA", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "lab_cnpj"] == ""
-        inifile["positions_pmc", "lab_cnpj"]    := pmcDatabase.getValueColumn("CNPJ", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "lab_cnpj"] == emptyStr
+        inifile["positions_pmc", "lab_cnpj"]        := pmcDatabase.getValueColumn("CNPJ", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "lab_name"] == ""
-        inifile["positions_pmc", "lab_name"]    := pmcDatabase.getValueColumn("LABORATÓRIO", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "lab_name"] == emptyStr
+        inifile["positions_pmc", "lab_name"]        := pmcDatabase.getValueColumn("LABORATÓRIO", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "ggrem"] == ""
-        inifile["positions_pmc", "ggrem"]       := pmcDatabase.getValueColumn("CÓDIGO GGREM", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "ggrem"] == emptyStr
+        inifile["positions_pmc", "ggrem"]           := pmcDatabase.getValueColumn("CÓDIGO GGREM", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "ms"] == ""
-        inifile["positions_pmc", "ms"]          := pmcDatabase.getValueColumn("REGISTRO", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "ms"] == emptyStr
+        inifile["positions_pmc", "ms"]              := pmcDatabase.getValueColumn("REGISTRO", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "ean"] == ""
-        inifile["positions_pmc", "ean"]         := pmcDatabase.getValueColumn("EAN 1", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "ean"] == emptyStr
+        inifile["positions_pmc", "ean"]             := pmcDatabase.getValueColumn("EAN 1", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "ean2"] == ""
-        inifile["positions_pmc", "ean2"]        := pmcDatabase.getValueColumn("EAN 2", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "ean2"] == emptyStr
+        inifile["positions_pmc", "ean2"]            := pmcDatabase.getValueColumn("EAN 2", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "name"] == ""
-        inifile["positions_pmc", "name"]        := pmcDatabase.getValueColumn("PRODUTO", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "name"] == emptyStr
+        inifile["positions_pmc", "name"]            := pmcDatabase.getValueColumn("PRODUTO", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "presentation"] == ""
-        inifile["positions_pmc", "presentation"] := pmcDatabase.getValueColumn("APRESENTAÇÃO", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "presentation"] == emptyStr
+        inifile["positions_pmc", "presentation"]    := pmcDatabase.getValueColumn("APRESENTAÇÃO", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "class"] == ""
-        inifile["positions_pmc", "class"]       := pmcDatabase.getValueColumn("CLASSE TERAPÊUTICA", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "class"] == emptyStr
+        inifile["positions_pmc", "class"]           := pmcDatabase.getValueColumn("CLASSE TERAPÊUTICA", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "type"] == ""
-        inifile["positions_pmc", "type"]        := pmcDatabase.getValueColumn("TIPO DE PRODUTO (STATUS DO PRODUTO)", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "type"] == emptyStr
+        inifile["positions_pmc", "type"]            := pmcDatabase.getValueColumn("TIPO DE PRODUTO (STATUS DO PRODUTO)", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "price_control"] == ""
-        inifile["positions_pmc", "price_control"] := pmcDatabase.getValueColumn("REGIME DE PREÇO", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "price_control"] == emptyStr
+        inifile["positions_pmc", "price_control"]   := pmcDatabase.getValueColumn("REGIME DE PREÇO", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_untributed"] == ""
-        inifile["positions_pmc", "pf_untributed"] := pmcDatabase.getValueColumn("PF Sem Impostos", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_untributed"] == emptyStr
+        inifile["positions_pmc", "pf_untributed"]   := pmcDatabase.getValueColumn("PF Sem Impostos", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_0"] == ""
-        inifile["positions_pmc", "pf_0"]        := pmcDatabase.getValueColumn("PF 0%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_0"] == emptyStr
+        inifile["positions_pmc", "pf_0"]            := pmcDatabase.getValueColumn("PF 0%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_12"] == ""
-        inifile["positions_pmc", "pf_12"]       := pmcDatabase.getValueColumn("PF 12%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_12"] == emptyStr
+        inifile["positions_pmc", "pf_12"]           := pmcDatabase.getValueColumn("PF 12%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_17"] == ""
-        inifile["positions_pmc", "pf_17"]       := pmcDatabase.getValueColumn("PF 17%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_17"] == emptyStr
+        inifile["positions_pmc", "pf_17"]           := pmcDatabase.getValueColumn("PF 17%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_17_alc"] == ""
-        inifile["positions_pmc", "pf_17_alc"]   := pmcDatabase.getValueColumn("PF 17% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_17_alc"] == emptyStr
+        inifile["positions_pmc", "pf_17_alc"]       := pmcDatabase.getValueColumn("PF 17% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_17_5"] == ""
-        inifile["positions_pmc", "pf_17_5"]     := pmcDatabase.getValueColumn("PF 17,5%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_17_5"] == emptyStr
+        inifile["positions_pmc", "pf_17_5"]         := pmcDatabase.getValueColumn("PF 17,5%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_17_5_alc"] == ""
-        inifile["positions_pmc", "pf_17_5_alc"] := pmcDatabase.getValueColumn("PF 17,5% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_17_5_alc"] == emptyStr
+        inifile["positions_pmc", "pf_17_5_alc"]     := pmcDatabase.getValueColumn("PF 17,5% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_18"] == ""
-        inifile["positions_pmc", "pf_18"]       := pmcDatabase.getValueColumn("PF 18%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_18"] == emptyStr
+        inifile["positions_pmc", "pf_18"]           := pmcDatabase.getValueColumn("PF 18%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_18_alc"] == ""
-        inifile["positions_pmc", "pf_18_alc"]   := pmcDatabase.getValueColumn("PF 18% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_18_alc"] == emptyStr
+        inifile["positions_pmc", "pf_18_alc"]       := pmcDatabase.getValueColumn("PF 18% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_19"] == ""
-        inifile["positions_pmc", "pf_19"]       := pmcDatabase.getValueColumn("PF 19%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_19"] == emptyStr
+        inifile["positions_pmc", "pf_19"]           := pmcDatabase.getValueColumn("PF 19%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_20"] == ""
-        inifile["positions_pmc", "pf_20"]       := pmcDatabase.getValueColumn("PF 20%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_20"] == emptyStr
+        inifile["positions_pmc", "pf_20"]           := pmcDatabase.getValueColumn("PF 20%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_21"] == ""
-        inifile["positions_pmc", "pf_21"]       := pmcDatabase.getValueColumn("PF 21%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_21"] == emptyStr
+        inifile["positions_pmc", "pf_21"]           := pmcDatabase.getValueColumn("PF 21%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pf_22"] == ""
-        inifile["positions_pmc", "pf_22"]       := pmcDatabase.getValueColumn("PF 22%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pf_22"] == emptyStr
+        inifile["positions_pmc", "pf_22"]           := pmcDatabase.getValueColumn("PF 22%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_0"] == ""
-        inifile["positions_pmc", "pmc_0"]       := pmcDatabase.getValueColumn("PMC 0%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_0"] == emptyStr
+        inifile["positions_pmc", "pmc_0"]           := pmcDatabase.getValueColumn("PMC 0%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_12"] == ""
-        inifile["positions_pmc", "pmc_12"]      := pmcDatabase.getValueColumn("PMC 12%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_12"] == emptyStr
+        inifile["positions_pmc", "pmc_12"]          := pmcDatabase.getValueColumn("PMC 12%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_17"] == ""
-        inifile["positions_pmc", "pmc_17"]      := pmcDatabase.getValueColumn("PMC 17%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_17"] == emptyStr
+        inifile["positions_pmc", "pmc_17"]          := pmcDatabase.getValueColumn("PMC 17%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_17_alc"] == ""
-        inifile["positions_pmc", "pmc_17_alc"]  := pmcDatabase.getValueColumn("PMC 17% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_17_alc"] == emptyStr
+        inifile["positions_pmc", "pmc_17_alc"]      := pmcDatabase.getValueColumn("PMC 17% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_17_5"] == ""
-        inifile["positions_pmc", "pmc_17_5"]    := pmcDatabase.getValueColumn("PMC 17,5%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_17_5"] == emptyStr
+        inifile["positions_pmc", "pmc_17_5"]        := pmcDatabase.getValueColumn("PMC 17,5%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_17_5_alc"] == ""
-        inifile["positions_pmc", "pmc_17_5_alc"] := pmcDatabase.getValueColumn("PMC 17,5% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_17_5_alc"] == emptyStr
+        inifile["positions_pmc", "pmc_17_5_alc"]    := pmcDatabase.getValueColumn("PMC 17,5% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_18"] == ""
-        inifile["positions_pmc", "pmc_18"]      := pmcDatabase.getValueColumn("PMC 18%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_18"] == emptyStr
+        inifile["positions_pmc", "pmc_18"]          := pmcDatabase.getValueColumn("PMC 18%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_18_alc"] == ""
-        inifile["positions_pmc", "pmc_18_alc"]  := pmcDatabase.getValueColumn("PMC 18% ALC", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_18_alc"] == emptyStr
+        inifile["positions_pmc", "pmc_18_alc"]      := pmcDatabase.getValueColumn("PMC 18% ALC", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_19"] == ""
-        inifile["positions_pmc", "pmc_19"]      := pmcDatabase.getValueColumn("PMC 19%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_19"] == emptyStr
+        inifile["positions_pmc", "pmc_19"]          := pmcDatabase.getValueColumn("PMC 19%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_20"] == ""
-        inifile["positions_pmc", "pmc_20"]      := pmcDatabase.getValueColumn("PMC 20%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_20"] == emptyStr
+        inifile["positions_pmc", "pmc_20"]          := pmcDatabase.getValueColumn("PMC 20%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_21"] == ""
-        inifile["positions_pmc", "pmc_21"]      := pmcDatabase.getValueColumn("PMC 21%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_21"] == emptyStr
+        inifile["positions_pmc", "pmc_21"]          := pmcDatabase.getValueColumn("PMC 21%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pmc_22"] == ""
-        inifile["positions_pmc", "pmc_22"]      := pmcDatabase.getValueColumn("PMC 22%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pmc_22"] == emptyStr
+        inifile["positions_pmc", "pmc_22"]          := pmcDatabase.getValueColumn("PMC 22%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "hospital_only"] == ""
-        inifile["positions_pmc", "hospital_only"] := pmcDatabase.getValueColumn("RESTRIÇÃO HOSPITALAR", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "hospital_only"] == emptyStr
+        inifile["positions_pmc", "hospital_only"]   := pmcDatabase.getValueColumn("RESTRIÇÃO HOSPITALAR", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "cap"] == ""
-        inifile["positions_pmc", "cap"]         := pmcDatabase.getValueColumn("CAP", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "cap"] == emptyStr
+        inifile["positions_pmc", "cap"]             := pmcDatabase.getValueColumn("CAP", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "confaz_87"] == ""
-        inifile["positions_pmc", "confaz_87"]   := pmcDatabase.getValueColumn("CONFAZ 87", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "confaz_87"] == emptyStr
+        inifile["positions_pmc", "confaz_87"]       := pmcDatabase.getValueColumn("CONFAZ 87", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "icms_0"] == ""
-        inifile["positions_pmc", "icms_0"]      := pmcDatabase.getValueColumn("ICMS 0%", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "icms_0"] == emptyStr
+        inifile["positions_pmc", "icms_0"]          := pmcDatabase.getValueColumn("ICMS 0%", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "recursal"] == ""
-        inifile["positions_pmc", "recursal"]    := pmcDatabase.getValueColumn("ANÁLISE RECURSAL", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "recursal"] == emptyStr
+        inifile["positions_pmc", "recursal"]        := pmcDatabase.getValueColumn("ANÁLISE RECURSAL", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "pis_cofins"] == ""
-        inifile["positions_pmc", "pis_cofins"]  := pmcDatabase.getValueColumn("LISTA DE CONCESSÃO DE CRÉDITO TRIBUTÁRIO (PIS/COFINS)", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "pis_cofins"] == emptyStr
+        inifile["positions_pmc", "pis_cofins"]      := pmcDatabase.getValueColumn("LISTA DE CONCESSÃO DE CRÉDITO TRIBUTÁRIO (PIS/COFINS)", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "commercialized"] == ""
-        inifile["positions_pmc", "commercialized"] := pmcDatabase.getValueColumn("COMERCIALIZAÇÃO 2022", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "commercialized"] == emptyStr
+        inifile["positions_pmc", "commercialized"]  := pmcDatabase.getValueColumn("COMERCIALIZAÇÃO 2022", "40:" pmcDatabase.rowCount)
     progress += 1
-    if inifile["positions_pmc", "stripe"] == ""
-        inifile["positions_pmc", "stripe"]      := pmcDatabase.getValueColumn("TARJA", "40:" pmcDatabase.rowCount)
+    if inifile["positions_pmc", "stripe"] == emptyStr
+        inifile["positions_pmc", "stripe"]          := pmcDatabase.getValueColumn("TARJA", "40:" pmcDatabase.rowCount)
     progress += 1
 
     load.stop()
@@ -381,9 +405,9 @@ deleteDatabases(args*) {
 }
 
 corruptDatabases(args*) {
-    inifile["databases", "pmc_name"]    := "Error"
-    inifile["databases", "pmc_path"]    := "Error"
-    inifile["databases", "pmc_url"]     := "Error"
+    inifile["databases", "pmc_name"] := "Error"
+    inifile["databases", "pmc_path"] := "Error"
+    inifile["databases", "pmc_url"] := "Error"
     ExitApp(FailedToGetDatabase)
 }
 
@@ -398,13 +422,13 @@ installPmcDatabase() {
         FileDelete(inifile["databases", "pmc_path"])
     }
     progress += 1
-    inifile["databases", "pmc_name", "test"]    := pmcDatabaseName
+    inifile["databases", "pmc_name", "test"] := pmcDatabaseName
     progress += 1
-    inifile["databases", "pmc_url"]             := pmcDatabaseUrl
+    inifile["databases", "pmc_url"] := pmcDatabaseUrl
     progress += 1
-    inifile["databases", "pmc_path"]            := instalationDir "\" pmcDatabaseName
+    inifile["databases", "pmc_path"] := instalationDir "\" pmcDatabaseName
     progress += 1
-    inifile["positions_pmc", "reset"]           := true
+    inifile["positions_pmc", "reset"] := true
     progress += 1
     downloadFile(pmcDatabaseUrl, inifile["databases", "pmc_path"], , , corruptDatabases)
     progress += 1
@@ -413,8 +437,8 @@ installPmcDatabase() {
 }
 
 getPmcDatabaseName() {
-    if pmcDatabaseUrl == ""
-        return ""
+    if pmcDatabaseUrl == emptyStr
+        return emptyStr
     name := StrSplit(pmcDatabaseUrl, "arquivos/")[2]
     name := StrSplit(name, "/")[1]
 
@@ -445,76 +469,87 @@ getItemFromEan(ean) {
     return item
 }
 
-getListOfItemsByDesc(desc) {
-    pg          := 0
-    mpg         := 3
-    load        := loadingScreen("Carregando lista", "Carregando", &pg, mpg)
-    load        .start()
-    items       := Map()
-    lastRow     := "40"
-    rowCount    := pmcDatabase.rowCount
-    maxItems    := inifile["config", "max_items_on_list", 100]
-    nameCol     := inifile["positions_pmc", "name"]
-    compCol     := inifile["positions_pmc", "composition"]
-    pg          += 1
-
-    l   := loadingScreen("Buscando por nome", repository " por " author, &items.Count, maxItems)
-    l   .start()
-    loop {
-        row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
-        if not row or items.Count >= maxItems
-            break
-
-        if items.Has(row)
-            continue
-
-        item        := ItemClass()
-        item        .getItemFromRow(row)
-        items[row]  := item
-        lastRow     := row + 1
-    }
-    l       .stop()
-    pg      += 1
+getListOfItemsByDesc(desc, method) {
+    items := Map()
     lastRow := "40"
-    l       := loadingScreen("Buscando por composicao", repository " por " author, &items.Count, maxItems)
-    l       .start()
-    loop {
-        row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
-        if not row or items.Count >= maxItems
-            break
-
-        if items.Has(row)
-            continue
-        item        := ItemClass()
-        item        .getItemFromRow(row)
-        items[row]  := item
-        lastRow     := row + 1
+    rowCount := pmcDatabase.rowCount
+    maxItems := inifile["config", "max_items_on_list", 100]
+    nameCol := inifile["positions_pmc", "name"]
+    compCol := inifile["positions_pmc", "composition"]
+    lab_name := StrSplit(desc, " LAB:")
+    lab_name := InStr(desc, " LAB:") ? lab_name[2] : emptyStr
+    if lab_name != emptyStr{
+        desc := StrSplit(desc, " LAB:")
+        desc := desc[1]
     }
-    l       .stop()
-    pg      += 1
-    load    .stop()
-    return  items
+
+    if method == "Name"{
+        l := loadingScreen("Buscando por nome", repository " por " author, &lastRow, rowCount)
+        l.start()
+        loop {
+            itemsCount := items.Count
+            row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
+            if not row or (itemsCount >= maxItems and maxItems != 0)
+                break
+
+            item := ItemClass()
+            item.getItemFromRow(row)
+            if lab_name != emptyStr{
+                if InStr(item.lab_name, lab_name)
+                    items[row] := item
+            }
+            else{
+                items[row] := item
+            }
+            lastRow := row + 1
+        }
+        l.stop()
+    }
+    else{
+        l := loadingScreen("Buscando por composicao", repository " por " author, &lastRow, rowCount)
+        l.start()
+        loop {
+            itemsCount := items.Count
+            row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
+            if not row or (itemsCount >= maxItems and maxItems != 0)
+                break
+    
+            item := ItemClass()
+            item.getItemFromRow(row)
+            if lab_name != emptyStr{
+                if InStr(item.lab_name, lab_name)
+                    items[row] := item
+            }
+            else{
+                items[row] := item
+            }
+            lastRow := row + 1
+        }
+        l.stop()
+    }
+    return items
 }
 
 showListOfItems(itemsMap) {
-    gItems  := Gui("-MaximizeBox", "Lista de itens")
-    LV      := gItems.AddListView("r20 w1000", ["Codigo de barras", "Nome", "Composicao", "Apresentacao", "Laboratorio",
-            "Tipo", "Preco", "PF", "PMC", "Lista"])
-    LV      .OnEvent("DoubleClick", doubleClickedItem)
+    gItems := Gui("-MaximizeBox", "Lista de itens")
+    LV := gItems.AddListView("r20 w1000", ["Codigo de barras", "Nome", "Composicao", "Apresentacao", "Laboratorio",
+        "Tipo", "Preco", "PF", "PMC", "Lista"])
+    LV.OnEvent("DoubleClick", doubleClickedItem)
+    resultsN := gItems.AddText("xm20", "Quantidade de resultados: " itemsMap.Count)
 
     for row, item in itemsMap {
-        pf  := item.type == "Genérico" ? item.pf_12 : item.pf_18
+        pf := item.type == "Genérico" ? item.pf_12 : item.pf_18
         pmc := item.type == "Genérico" ? item.pmc_12 : item.pmc_18
 
-        LV  .Add(, item.ean, item.name, item.composition, item.presentation, item.lab_name, item.type,
+        LV.Add(, item.ean, item.name, item.composition, item.presentation, item.lab_name, item.type,
             item.price_control, pf, pmc, item.pis_cofins)
     }
 
-    LV      .ModifyCol
-    LV      .ModifyCol(5, "Integer")
-    LV      .ModifyCol(8, "Float")
-    LV      .ModifyCol(9, "Float")
-    gItems  .Show()
+    LV.ModifyCol
+    LV.ModifyCol(5, "Integer")
+    LV.ModifyCol(8, "Float")
+    LV.ModifyCol(9, "Float")
+    gItems.Show()
 }
 
 doubleClickedItem(LV, RowNumber) {
@@ -534,9 +569,9 @@ showItem(item) {
     gtxtClass       := gItem.AddText("xm5", "Classe terapeutica:`n" item.class)
     gtxtStripe      := gItem.AddText("xm5", "Tarja:`n" item.stripe)
     gtxtPf          := gItem.AddText("xm5", "Preco fabrica:`n")
-    gtxtPf.Text     .= gtxtType.Text == "Genérico" ? item.pf_12 : item.pf_18
+    gtxtPf.Text     .= item.type == "Genérico" ? item.pf_12 : item.pf_18
     gtxtPmc         := gItem.AddText("xm5", "Preco Maximo Consumidor:`n")
-    gtxtPmc.Text    .= gtxtType.Text == "Genérico" ? item.pmc_12 : item.pmc_18
+    gtxtPmc.Text    .= item.type == "Genérico" ? item.pmc_12 : item.pmc_18
     gtxtPisCofins   := gItem.AddText("xm5", "Lista PIS/COFINS:`n" item.pis_cofins)
 
     gItem.Show()
