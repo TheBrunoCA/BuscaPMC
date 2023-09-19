@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.140"
+VERSION := "0.141"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -47,7 +47,7 @@ try{
     FileDelete(instalationBatPath)
 }
 if wasUpdated{
-    MsgBox(github.update_message, "O aplicativo foi atualizado", "0x1000 T30")
+    MsgBox(github.update_message, "O aplicativo foi atualizado", "0x1000 T120")
 }
 
 progressCounter += 1
