@@ -5,7 +5,7 @@
  * @github https://www.github.com/TheBrunoCA
  * @date 2023/09/12
  ***********************************************************************/
-VERSION := "0.141"
+VERSION := "0.142"
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
@@ -68,12 +68,12 @@ searchTEdit     := MainGui.AddEdit("vTEditSearch Uppercase w180 yp+20 xm5")
 searchTEdit     .Focus()
 searchSubmitBtn := MainGui.AddButton("vBtnSearch x+5 yp Default", "Buscar")
 maxItemTxt      := MainGui.AddText("y+10 xm5", "Resultados maximos: ")
-maxItemTedit    := MainGui.AddEdit("yp-3 x+2 w30", inifile["config", "max_items_on_list", 0])
+maxItemTedit    := MainGui.AddEdit("yp-3 x+2 w30 Number", inifile["config", "max_items_on_list", 0])
 maxItemTedit.OnEvent("Change", maxItemEditChange)
 maxItemEditChange(obj, info){
-    if obj.Value != emptyStr
-        inifile["config", "max_items_on_list"] := obj.Value
-    return
+    if obj.Value == emptyStr or not IsNumber(obj.Value)
+        obj.Value := 0
+    inifile["config", "max_items_on_list"] := obj.Value >= 0 ? obj.Value : 0
 }
 versionTxt      := MainGui.AddText("yp x+20", "Versao: " VERSION)
 searchSubmitBtn .OnEvent("Click", searchBtnClicked)
@@ -474,11 +474,12 @@ getItemFromEan(ean) {
 
 getListOfItemsByDesc(desc, method) {
     items := Map()
-    lastRow := "40"
+    lastRow := "1"
     rowCount := pmcDatabase.rowCount
     maxItems := inifile["config", "max_items_on_list", 100]
     nameCol := inifile["positions_pmc", "name"]
     compCol := inifile["positions_pmc", "composition"]
+    eanCol := inifile["positions_pmc", "ean"]
     lab_name := StrSplit(desc, " LAB:")
     lab_name := InStr(desc, " LAB:") ? lab_name[2] : emptyStr
     if lab_name != emptyStr{
@@ -492,11 +493,15 @@ getListOfItemsByDesc(desc, method) {
         loop {
             itemsCount := items.Count
             row := pmcDatabase.getValueRow(desc, nameCol lastRow ":" nameCol rowCount)
-            if not row or (itemsCount >= maxItems and maxItems != 0)
+            if not row or (itemsCount >= maxItems and maxItems != 0) or row == lastRow
                 break
 
             item := ItemClass()
             item.getItemFromRow(row)
+            if not IsNumber(item.ean){
+                lastRow := row
+                continue
+            }
             if lab_name != emptyStr{
                 if InStr(item.lab_name, lab_name)
                     items[row] := item
@@ -504,7 +509,7 @@ getListOfItemsByDesc(desc, method) {
             else{
                 items[row] := item
             }
-            lastRow := row + 1
+            lastRow := row
         }
         l.stop()
     }
@@ -514,11 +519,15 @@ getListOfItemsByDesc(desc, method) {
         loop {
             itemsCount := items.Count
             row := pmcDatabase.getValueRow(desc, compCol lastRow ":" compCol rowCount)
-            if not row or (itemsCount >= maxItems and maxItems != 0)
+            if not row or (itemsCount >= maxItems and maxItems != 0) or row == lastRow
                 break
     
             item := ItemClass()
             item.getItemFromRow(row)
+            if not IsNumber(item.ean){
+                lastRow := row
+                continue
+            }
             if lab_name != emptyStr{
                 if InStr(item.lab_name, lab_name)
                     items[row] := item
@@ -526,7 +535,7 @@ getListOfItemsByDesc(desc, method) {
             else{
                 items[row] := item
             }
-            lastRow := row + 1
+            lastRow := row
         }
         l.stop()
     }
