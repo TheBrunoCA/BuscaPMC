@@ -43,6 +43,9 @@ inifile := Ini(configIniPath)
 if inifile["info", "exe_path"] != A_ScriptFullPath and A_IsCompiled
     inifile["info", "exe_path"] := A_ScriptFullPath
 wasUpdated := FileExist(instalationBatPath)
+try{
+    FileDelete(instalationBatPath)
+}
 if wasUpdated{
     MsgBox(github.update_message, "O aplicativo foi atualizado", "0x1000 T30")
 }
