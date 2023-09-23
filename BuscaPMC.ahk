@@ -49,19 +49,21 @@ estates_ini := Ini(install_path "Estados.ini")
 siglas      := StrSplit(estates_ini[siglas], "`n")
 
 is_excel_installed := IsExcelInstalled()
-
-if ini_file[config, estate] == ""
-    AskEstate()
+is_estate_defined := ini_file[config, estate] != ""
 
 UpdateDatabase()
-
 if not FileExist(db_path){
     MsgBox("Não existe banco de dados baixado. Tente reabrir novamente.")
 }
 
 db := CsvHelper(db_path)
 
-MainGui()
+if is_estate_defined {
+    AskEstate()
+}else
+    MainGui()
+
+
 
 ;-------------------Functions------------------
 
@@ -89,6 +91,7 @@ OnFailedDownload(args*){
 
 AskEstate(){
     gui_estate  := Gui()
+    gui_estate  .OnEvent("Close", _closedGui)
     ask_text    := gui_estate.AddText(, "Selecione a sigla do seu estado.")
     estate_ddl  := gui_estate.AddDropDownList(, siglas)
     submit_btn  := gui_estate.AddButton("Default", "Confirmar").OnEvent("Click", _saveEstate)
@@ -97,6 +100,10 @@ AskEstate(){
             return
         ini_file[config, estate] := estate_ddl.Text
         gui_estate.Destroy()
+        MainGui()
+    }
+    _closedGui(args*){
+        ExitApp()
     }
     gui_estate.Show()
 }
@@ -140,4 +147,8 @@ MainGui(){
     }
 
     gui_main.Show()
+}
+
+ItemGui(item){
+    
 }
