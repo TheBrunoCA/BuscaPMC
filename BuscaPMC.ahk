@@ -1,4 +1,5 @@
 #Requires AutoHotkey v2.0
+#SingleInstance Force
 #Include <Bruno-Functions\ImportAllList>
 #Include <GithubReleases\GithubReleases>
 
@@ -26,7 +27,8 @@ if IsOnline{
 ;--------gui related info-------
 ask_estate_gui_title    := version
 main_gui_title          := git_repo " " version
-main_gui_title .= is_updated ? "" : "|| " github.GetLatestReleaseVersion() " available."
+main_gui_title          .= is_updated ? "" : "|| " github.GetLatestReleaseVersion() " available."
+config_gui_title        := ""
 
 ;---------estates ini--------------
 normal  := "NORMAL"
@@ -58,7 +60,7 @@ if not FileExist(db_path){
 
 db := CsvHelper(db_path)
 
-if is_estate_defined {
+if not is_estate_defined {
     AskEstate()
 }else
     MainGui()
@@ -89,7 +91,7 @@ OnFailedDownload(args*){
 
 ;------------------- GUIS ---------------------
 
-AskEstate(){
+AskEstate(args*){
     gui_estate  := Gui()
     gui_estate  .OnEvent("Close", _closedGui)
     ask_text    := gui_estate.AddText(, "Selecione a sigla do seu estado.")
@@ -100,12 +102,24 @@ AskEstate(){
             return
         ini_file[config, estate] := estate_ddl.Text
         gui_estate.Destroy()
+        if WinExist(main_gui_title)
+            return
         MainGui()
     }
     _closedGui(args*){
+        if ini_file[config, estate] != ""
+            return
         ExitApp()
     }
     gui_estate.Show()
+}
+
+ConfigGui(args*){
+    gui_config      := Gui(, config_gui_title)
+    ask_estate_btn  := gui_config.AddButton(, "Selecionar Estado")
+    ask_estate_btn.OnEvent("Click", AskEstate)
+
+    gui_config.Show()
 }
 
 MainGui(){
@@ -130,12 +144,10 @@ MainGui(){
                     search_edit.Value := ""
                 }
             }
-            msg := ""
-            for head in db.headers{
-                msg .= head ": " item[head] "`n"
-            }
-            MsgBox(msg)
             search_edit.Value := ""
+
+            ItemGui(item)
+            
             return
         }
 
@@ -143,12 +155,40 @@ MainGui(){
     config_btn  := gui_main.AddButton(, "Configurações")
     config_btn  .OnEvent("Click", _configBtn)
     _configBtn(args*){
-        
+        ConfigGui()
     }
 
     gui_main.Show()
 }
 
 ItemGui(item){
-    
+    generic := item["TIPO DE PRODUTO (STATUS DO PRODUTO)"] == "GENERICO" ? true : false
+    aliq := generic ? estates_ini[generico, ini_file[config, estate]] 
+    : estates_ini[normal, ini_file[config, estate]]
+
+    itemgui := Gui()
+    itemgui.AddText("xm", "Nome: ")
+    itemgui.AddEdit("ReadOnly yp x+2", item["PRODUTO"] " " 
+                                    item["APRESENTACAO"])
+    itemgui.AddText("yp x+20", "Código de barras: ")
+    itemgui.AddEdit("ReadOnly Number yp x+2", item["EAN 1"])
+    itemgui.AddText("yp x+20", "Lista: " item["LISTA DE CONCESSAO DE CREDITO TRIBUTARIO (PIS/COFINS)"])
+    itemgui.AddText("xm y+20", "Composição: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["SUBSTANCIA"])
+    itemgui.AddText("yp x+20", "Laboratório: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["LABORATORIO"])
+    itemgui.AddText("yp x+20", "Registro MS: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["REGISTRO"])
+    itemgui.AddText("xm y+20", "Classe: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["CLASSE TERAPEUTICA"])
+    itemgui.AddText("yp x+20", "Categoria: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["TIPO DE PRODUTO (STATUS DO PRODUTO)"])
+    itemgui.AddText("yp x+20", "Regime: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", item["REGIME DE PRECO"])
+    itemgui.AddText("xm y+20", "Preço Fábrica: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", "R$" item["PF " aliq])
+    itemgui.AddText("yp x+20", "Preço Máximo: ")
+    itemgui.AddEdit("yp x+2 ReadOnly", "R$" item["PMC " aliq])
+
+    itemgui.Show()
 }
