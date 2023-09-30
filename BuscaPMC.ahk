@@ -3,7 +3,7 @@
 #Include <Bruno-Functions\ImportAllList>
 #Include <GithubReleases\GithubReleases>
 
-version := "v0.1.0"
+version := "v0.1.1"
 p := 0
 mp := 10
 l := LoadingScreen("Carregando...", "Carregando...", &p, mp)
@@ -60,9 +60,9 @@ p += 1
 ask_estate_gui_title    := version
 main_gui_title          := git_repo " " version
 main_gui_title          .= is_updated ? "" : "|| " github.GetLatestReleaseVersion() " available."
-config_gui_title        := ""
-item_gui_title          := ""
-item_list_title         := ""
+config_gui_title        := "Configurações"
+item_gui_title          := "Item: "
+item_list_title         := "Lista de items"
 
 p += 1
 
@@ -194,11 +194,12 @@ MainGui() {
 
         if IsNumber(value) {
             try {
-                item := db.findItem(value, "EAN 1", true)
+                item := db.findItem(value, "EAN 1", true, true)
                 item := ItemClass(item)
             } catch Error as e {
                 if e.Message == "No item found with such attributes." {
                     MsgBox("Não foi encontrado nenhum item com esse codigo de barras.")
+                    return
                 }
             }
 
@@ -207,14 +208,15 @@ MainGui() {
         }
 
         try {
-            items := db.getArrayOfItems(value)
+            items := db.getArrayOfItems(value, , , true)
         } catch Error as e {
             if e.Message == "No item found with such attributes." {
-                MsgBox("Não foi encontrado nenhum item com esse codigo de barras.")
+                MsgBox("Não foi encontrado nenhum item com essa descrição.")
+                return
             }
         }
 
-        ItemListGui(items)
+        ItemListGui(items, true)
         return
 
     }
@@ -229,7 +231,7 @@ MainGui() {
 
 ItemGui(item) {
 
-    itemgui := Gui(, item_gui_title)
+    itemgui := Gui(, item_gui_title item.GetName())
     itemgui.SetFont("s10")
     itemgui.AddText("y+30", item.product[2] ": ")
     itemgui.AddText(, item.ean1[2] ": ")
@@ -259,7 +261,7 @@ ItemGui(item) {
     itemgui.Show()
 }
 
-ItemListGui(itemsArray){
+ItemListGui(itemsArray, show_progess := false){
 
     column := ["Código de barras", "Categoria", "Nome", "Composição", "PF", "PMC", "Laboratório", "Lista"]
 
@@ -274,7 +276,15 @@ ItemListGui(itemsArray){
     }
     count       := itemlist.AddText(, "Resultados: " itemsArray.Length)
 
-    for item in itemsArray{
+    if show_progess{
+        p := 0
+        l := LoadingScreen("Construindo lista", "Construindo lista", &p, itemsArray.Length)
+        l.start(50)
+    }
+
+    for i, item in itemsArray{
+        if show_progess
+            p := i
         i := ItemClass(item)
         itemlv.Add(, i.ean1[3], i.type[3], i.GetName(), i.comp[3], i.GetPF(config_file["config", "estate"])[3], 
         i.GetPMC(config_file["config", "estate"])[3], i.lab[3], i.pis_cofins[3])
@@ -285,6 +295,8 @@ ItemListGui(itemsArray){
     itemlv.ModifyCol(5, "Float")
     itemlv.ModifyCol(6, "Float")
 
+    if show_progess
+        l.stop()
     itemlist.Show()
 }
 
@@ -344,6 +356,6 @@ Class ItemClass{
 
     _getAliq(estate){
         section := this.type[3] == "GENERICO" ? "GENERICO" : "NORMAL"
-        return IniRead(A_WorkingDir "\Estados.ini", section, estate)
+        return estates_ini[section, estate]
     }
 }
