@@ -3,7 +3,13 @@
 #Include <Bruno-Functions\ImportAllList>
 #Include <GithubReleases\GithubReleases>
 
-version := "v0.0.1"
+version := "v0.1.0"
+p := 0
+mp := 10
+l := LoadingScreen("Carregando...", "Carregando...", &p, mp)
+l.start()
+
+p += 1
 
 ;--------some info--------------
 author      := "TheBrunoCA"
@@ -11,25 +17,44 @@ git_repo    := "BuscaPMC"
 site_url    := "http://www.thebrunoca.com.br/buscapmc/db/"
 db_ini_url  := site_url "db.ini"
 db_url      := site_url "db.csv"
+
+p += 1
+
 github      := GithubReleases(author, git_repo)
 
-is_updated  := true
-try {
-    is_updated := github.IsUpToDate(version)
-}
-
+p += 1
 
 install_path := A_AppData "\" author "\" git_repo "\"
 db_path     := install_path "\db.csv"
 
 config_file := Ini(install_path git_repo "_config.ini")
 db_ini      := Ini(install_path "db.ini")
+git_interval:= (30*60)
+last_check  := config_file["info", "app_last_updated", "0"]
 
-
-if IsOnline {
-    Download(db_ini_url, db_ini.path)
+if last_check + git_interval < GetCurrentUnixTime(){
+    github.GetInfo()
 }
 
+p += 1
+
+is_updated  := true
+try {
+    is_updated := github.IsUpToDate(version)
+}
+
+if not is_updated and A_IsCompiled
+    AskUpdate()
+
+p += 1
+
+if IsOnline() {
+    Download(db_ini_url, db_ini.path)
+    if not IsNumber(db_ini["db", "last_updated"])
+        Download(db_ini_url, db_ini.path)
+}
+
+p += 1
 
 ;--------gui related info-------
 ask_estate_gui_title    := version
@@ -39,18 +64,27 @@ config_gui_title        := ""
 item_gui_title          := ""
 item_list_title         := ""
 
+p += 1
 
 FileInstall("Estados.ini", install_path "Estados.ini", true)
 estates_ini := Ini(install_path "Estados.ini")
 
+p += 1
 
 UpdateDatabase()
 
 if not FileExist(db_path) {
     MsgBox("Não existe banco de dados baixado. Tente reabrir quando houver internet.")
+    l.stop()
+    ExitApp()
 }
 
+p += 1
+
 db := CsvHelper(db_path)
+
+p += 1
+l.stop()
 
 is_estate_defined := config_file["config", "estate"] != ""
 if not is_estate_defined {
@@ -62,13 +96,21 @@ if not is_estate_defined {
 ;-------------------Functions------------------
 
 UpdateDatabase() {
-    if not IsOnline
+    if not IsOnline()
         return
 
-    if not IsNumber(config_file["info", "db_last_updated"])
+    lu := config_file["info", "db_last_updated"]
+    if not IsNumber(lu)
         config_file["info", "db_last_updated"] := 0
 
-    if db_ini["db", "last_updated", 0] > config_file["info", "db_last_updated", 0] or 
+    dlu := db_ini["db", "last_updated"]
+    if not IsNumber(dlu){
+        db_ini["db", "last_updated"] := 0
+        MsgBox("Erro com o arquivo de atualização do banco de dados.")
+        Reload()
+    }
+        
+    if dlu > config_file["info", "db_last_updated"] or 
         db_ini["db", "name"] != config_file["info", "db_name"] or 
         not FileExist(db_path){
             downloadFile(db_url, db_path, , , OnFailedDownload)
@@ -91,7 +133,7 @@ AskEstate(args*) {
     gui_estate := Gui(, ask_estate_gui_title)
     gui_estate.OnEvent("Close", _closedGui)
     ask_text := gui_estate.AddText(, "Selecione a sigla do seu estado.")
-    estate_ddl := gui_estate.AddDropDownList(, estates_ini["siglas"])
+    estate_ddl := gui_estate.AddDropDownList(, StrSplit(estates_ini["siglas"], "`n"))
     submit_btn := gui_estate.AddButton("Default", "Confirmar").OnEvent("Click", _saveEstate)
     _saveEstate(args*) {
         if estate_ddl.Text == emptyStr
@@ -116,6 +158,21 @@ ConfigGui(args*) {
     ask_estate_btn.OnEvent("Click", AskEstate)
 
     gui_config.Show()
+}
+
+AskUpdate(){
+    answer := MsgBox("Versão " github.GetLatestReleaseVersion() " disponível.`nDeseja instalar?", "Atualização", "0x4")
+    if answer == "Yes"{
+        d := downloadFile(github.GetLatestReleaseDownloadUrl(), A_Temp "\download")
+        bat := BatWrite(A_Temp "\update.bat")
+        bat.TimeOut(1)
+        bat.MoveFile(A_ScriptFullPath, install_path "old_" A_ScriptName)
+        bat.MoveFile(d, A_ScriptFullPath)
+        bat.Start(A_ScriptFullPath)
+
+        Run(bat.path, , "Hide")
+        ExitApp()
+    }
 }
 
 MainGui() {
@@ -173,8 +230,6 @@ MainGui() {
 ItemGui(item) {
 
     itemgui := Gui(, item_gui_title)
-    itemgui.SetFont("s12")
-    itemgui.AddText("Center ym10", item.product[3])
     itemgui.SetFont("s10")
     itemgui.AddText("y+30", item.product[2] ": ")
     itemgui.AddText(, item.ean1[2] ": ")
@@ -185,11 +240,8 @@ ItemGui(item) {
     itemgui.AddText(, item.GetPF(config_file["config", "estate"])[2] ": ")
     itemgui.AddText(, item.GetPMC(config_file["config", "estate"])[2] ": ")
     itemgui.AddText(, item.pis_cofins[2] ": ")
-    itemgui.AddButton("y+20", "Voltar").OnEvent("Click", _onVoltar)
-    _onVoltar(args*) {
-        itemgui.Destroy()
-    }
-    itemgui.AddEdit("ReadOnly ys+45", item.GetName())
+
+    itemgui.AddEdit("ReadOnly ys w600", item.GetName())
     itemgui.AddEdit("ReadOnly xp", item.ean1[3])
     itemgui.AddEdit("ReadOnly xp", item.lab[3])
     itemgui.AddEdit("ReadOnly xp", item.registry[3])
@@ -198,6 +250,11 @@ ItemGui(item) {
     itemgui.AddEdit("ReadOnly xp", "R$" item.GetPF(config_file["config", "estate"])[3])
     itemgui.AddEdit("ReadOnly xp", "R$" item.GetPMC(config_file["config", "estate"])[3])
     itemgui.AddEdit("ReadOnly xp", item.pis_cofins[3])
+
+    itemgui.AddButton("y+20", "Voltar").OnEvent("Click", _onVoltar)
+    _onVoltar(args*) {
+        itemgui.Destroy()
+    }
 
     itemgui.Show()
 }
@@ -208,6 +265,13 @@ ItemListGui(itemsArray){
 
     itemlist    := Gui(, item_list_title)
     itemlv      := itemlist.AddListView("w1000 h400", column)
+    itemlv      .OnEvent("DoubleClick", _onDoubleClick)
+    _onDoubleClick(lv, row_number){
+        if row_number == 0
+            return
+        item := ItemClass(db.FindItem(lv.GetText(row_number), "EAN 1", true))
+        ItemGui(item)
+    }
     count       := itemlist.AddText(, "Resultados: " itemsArray.Length)
 
     for item in itemsArray{
