@@ -3,7 +3,7 @@
 #Include <Bruno-Functions\ImportAllList>
 #Include <GithubReleases\GithubReleases>
 
-version := "v0.1.1"
+version := "0.1.1"
 p := 0
 mp := 10
 l := LoadingScreen("Carregando...", "Carregando...", &p, mp)
